@@ -7,6 +7,8 @@ import time
 from omegaconf import OmegaConf
 from PIL import Image
 from cog import BasePredictor, Input, Path
+import torch
+import logging
 
 from SUPIR.util import (
     create_SUPIR_model,
@@ -16,6 +18,13 @@ from SUPIR.util import (
 )
 from llava.llava_agent import LLavaAgent
 import CKPT_PTH
+
+logging.basicConfig(
+    format="(%(asctime)s) %(name)s:%(lineno)d [%(levelname)s] | %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 
 SUPIR_v0Q_URL = "https://weights.replicate.delivery/default/SUPIR-v0Q.ckpt"
 SUPIR_v0F_URL = "https://weights.replicate.delivery/default/SUPIR-v0F.ckpt"
@@ -57,7 +66,9 @@ class Predictor(BasePredictor):
     llava_device = "cuda:0"
 
     def setup(self) -> None:
-        """Load the model into memory to make running multiple predictions efficient"""
+        logging.info("GPU memory usage before setup: ")
+        print(torch.cuda.memory_summary())
+
         for model_dir in [
             MODEL_CACHE,
             f"{MODEL_CACHE}/SUPIR_cache",
@@ -86,6 +97,9 @@ class Predictor(BasePredictor):
 
         model_types = ["Q"]  # , "F"]
 
+        logging.info("GPU memory usage after setup, but before model load: ")
+        print(torch.cuda.memory_summary())
+
         self.models = {
             k: create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign=k).to(
                 self.supir_device
@@ -93,12 +107,18 @@ class Predictor(BasePredictor):
             for k in model_types
         }
 
+        logging.info("GPU memory usage after model load: ")
+        print(torch.cuda.memory_summary())
+
         for k in model_types:
             self.models[k].ae_dtype = convert_dtype(ae_dtype)
             self.models[k].model.dtype = convert_dtype(diff_dtype)
 
         # load LLaVA
         self.llava_agent = LLavaAgent(LLAVA_MODEL_PATH, device=self.llava_device)
+
+        logging.info("GPU memory usage after LLaVA load: ")
+        print(torch.cuda.memory_summary())
 
     def predict(
         self,
@@ -177,43 +197,61 @@ class Predictor(BasePredictor):
             seed = int.from_bytes(os.urandom(2), "big")
         print(f"Using seed: {seed}")
 
-        model = self.models["Q"] if model_name == "SUPIR-v0Q" else self.models["F"]
+        try:
+            logging.info("GPU memory usage before prediction: ")
+            print(torch.cuda.memory_summary())
 
-        lq_img = Image.open(str(image))
-        lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
-        lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
+            model = self.models["Q"] if model_name == "SUPIR-v0Q" else self.models["F"]
 
-        # step 1: Pre-denoise for LLaVA)
-        clean_imgs = model.batchify_denoise(lq_img)
-        clean_PIL_img = Tensor2PIL(clean_imgs[0], h0, w0)
+            lq_img = Image.open(str(image))
+            lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
+            lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
 
-        # step 2: LLaVA
-        captions = [""]
-        if use_llava:
-            captions = self.llava_agent.gen_image_caption([clean_PIL_img])
-            print(f"Captions from LLaVA: {captions}")
+            # step 1: Pre-denoise for LLaVA)
+            clean_imgs = model.batchify_denoise(lq_img)
+            clean_PIL_img = Tensor2PIL(clean_imgs[0], h0, w0)
 
-        # step 3: Diffusion Process
-        samples = model.batchify_sample(
-            lq_img,
-            captions,
-            num_steps=edm_steps,
-            restoration_scale=s_stage1,
-            s_churn=s_churn,
-            s_noise=s_noise,
-            cfg_scale=s_cfg,
-            control_scale=s_stage2,
-            seed=seed,
-            num_samples=1,
-            p_p=a_prompt,
-            n_p=n_prompt,
-            color_fix_type=color_fix_type,
-            use_linear_CFG=linear_CFG,
-            use_linear_control_scale=linear_s_stage2,
-            cfg_scale_start=spt_linear_CFG,
-            control_scale_start=spt_linear_s_stage2,
-        )
+            # step 2: LLaVA
+            captions = [""]
+            if use_llava:
+                captions = self.llava_agent.gen_image_caption([clean_PIL_img])
+                print(f"Captions from LLaVA: {captions}")
 
-        out_path = "/tmp/out.png"
-        Tensor2PIL(samples[0], h0, w0).save(out_path)
-        return Path(out_path)
+            # step 3: Diffusion Process
+            samples = model.batchify_sample(
+                lq_img,
+                captions,
+                num_steps=edm_steps,
+                restoration_scale=s_stage1,
+                s_churn=s_churn,
+                s_noise=s_noise,
+                cfg_scale=s_cfg,
+                control_scale=s_stage2,
+                seed=seed,
+                num_samples=1,
+                p_p=a_prompt,
+                n_p=n_prompt,
+                color_fix_type=color_fix_type,
+                use_linear_CFG=linear_CFG,
+                use_linear_control_scale=linear_s_stage2,
+                cfg_scale_start=spt_linear_CFG,
+                control_scale_start=spt_linear_s_stage2,
+            )
+
+            out_path = "/tmp/out.png"
+            Tensor2PIL(samples[0], h0, w0).save(out_path)
+
+            logging.info("GPU memory usage after prediction: ")
+            print(torch.cuda.memory_summary())
+
+            return Path(out_path)
+        finally:
+            del lq_img, clean_imgs, clean_PIL_img, captions, samples
+
+            logging.info("GPU memory usage after variable cleanup: ")
+            print(torch.cuda.memory_summary())
+
+            torch.cuda.empty_cache()
+
+            logging.info("GPU memory usage after cache empty: ")
+            print(torch.cuda.memory_summary())
