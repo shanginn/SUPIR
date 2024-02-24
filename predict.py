@@ -207,27 +207,25 @@ class Predictor(BasePredictor):
 
             lq_img = Image.open(str(image))
 
-            if max(lq_img.size) > 512:
-                llava_img = lq_img.copy()
-                llava_img.thumbnail((512, 512))
-            else:
-                llava_img = lq_img.copy()
-
-            lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
-            lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
-
             # step 2: LLaVA
             captions = [""]
             if use_llava:
+                llava_img = lq_img.copy()
+                llava_img.thumbnail((512, 512))
+                llava_img, h0, w0 = PIL2Tensor(llava_img, upsacle=upscale, min_size=min_size)
+
                 # step 1: Pre-denoise for LLaVA)
-                clean_imgs = model.batchify_denoise(llava_img)
-                clean_pil_img = Tensor2PIL(clean_imgs[0], h0, w0)
+                clean_images = model.batchify_denoise(llava_img)
+                clean_pil_img = Tensor2PIL(clean_images[0], h0, w0)
 
                 captions = self.llava_agent.gen_image_caption([clean_pil_img])
                 print(f"Captions from LLaVA: {captions}")
 
                 # clear memory:
-                del clean_imgs, clean_pil_img
+                del llava_img, clean_images, clean_pil_img
+
+            lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
+            lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
 
             # step 3: Diffusion Process
             samples = model.batchify_sample(
