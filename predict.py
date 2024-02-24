@@ -4,7 +4,6 @@
 import os
 import subprocess
 import time
-from omegaconf import OmegaConf
 from PIL import Image
 from cog import BasePredictor, Input, Path
 import torch
@@ -194,6 +193,8 @@ class Predictor(BasePredictor):
     ) -> Path:
         """Run a single prediction on the model"""
 
+        lq_img, captions, samples = None, None, None
+
         if seed is None:
             seed = int.from_bytes(os.urandom(2), "big")
         print(f"Using seed: {seed}")
@@ -205,18 +206,28 @@ class Predictor(BasePredictor):
             model = self.models["Q"] if model_name == "SUPIR-v0Q" else self.models["F"]
 
             lq_img = Image.open(str(image))
+
+            if max(lq_img.size) > 512:
+                llava_img = lq_img.copy()
+                llava_img.thumbnail((512, 512))
+            else:
+                llava_img = lq_img.copy()
+
             lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
             lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
-
-            # step 1: Pre-denoise for LLaVA)
-            clean_imgs = model.batchify_denoise(lq_img)
-            clean_PIL_img = Tensor2PIL(clean_imgs[0], h0, w0)
 
             # step 2: LLaVA
             captions = [""]
             if use_llava:
-                captions = self.llava_agent.gen_image_caption([clean_PIL_img])
+                # step 1: Pre-denoise for LLaVA)
+                clean_imgs = model.batchify_denoise(llava_img)
+                clean_pil_img = Tensor2PIL(clean_imgs[0], h0, w0)
+
+                captions = self.llava_agent.gen_image_caption([clean_pil_img])
                 print(f"Captions from LLaVA: {captions}")
+
+                # clear memory:
+                del clean_imgs, clean_pil_img
 
             # step 3: Diffusion Process
             samples = model.batchify_sample(
@@ -247,7 +258,7 @@ class Predictor(BasePredictor):
 
             return Path(out_path)
         finally:
-            del lq_img, clean_imgs, clean_PIL_img, captions, samples
+            del lq_img, captions, samples
 
             logging.info("GPU memory usage after variable cleanup: ")
             print(torch.cuda.memory_summary())
