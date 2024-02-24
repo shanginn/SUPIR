@@ -4,3 +4,4 @@ cache
 __pycache__
 test.py
 output.json
+.idea
