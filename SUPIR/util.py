@@ -35,16 +35,17 @@ def create_SUPIR_model(config_path, SUPIR_sign=None):
     config = OmegaConf.load(config_path)
     model = instantiate_from_config(config.model).cpu()
     print(f'Loaded model config from [{config_path}]')
+
     if config.SDXL_CKPT is not None:
         model.load_state_dict(load_state_dict(config.SDXL_CKPT), strict=False)
     if config.SUPIR_CKPT is not None:
         model.load_state_dict(load_state_dict(config.SUPIR_CKPT), strict=False)
-    if SUPIR_sign is not None:
-        assert SUPIR_sign in ['F', 'Q']
-        if SUPIR_sign == 'F':
-            model.load_state_dict(load_state_dict(config.SUPIR_CKPT_F), strict=False)
-        elif SUPIR_sign == 'Q':
-            model.load_state_dict(load_state_dict(config.SUPIR_CKPT_Q), strict=False)
+
+    if SUPIR_sign == 'F':
+        model.load_state_dict(load_state_dict(config.SUPIR_CKPT_F), strict=False)
+    elif SUPIR_sign == 'Q':
+        model.load_state_dict(load_state_dict(config.SUPIR_CKPT_Q), strict=False)
+
     return model
 
 def load_QF_ckpt(config_path):
