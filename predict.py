@@ -53,8 +53,8 @@ def download_weights(url, dest, extract=True):
 class Predictor(BasePredictor):
     models: dict
     llava_agent: LLavaAgent
-    self.supir_device = "cuda:0"
-    self.llava_device = "cuda:0"
+    supir_device = "cuda:0"
+    llava_device = "cuda:0"
 
     def setup(self) -> None:
         """Load the model into memory to make running multiple predictions efficient"""
