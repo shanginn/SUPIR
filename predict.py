@@ -124,12 +124,13 @@ class Predictor(BasePredictor):
         self,
         model_name: str = Input(
             description="Choose a model. SUPIR-v0Q is the default training settings with paper. SUPIR-v0F is high generalization and high image quality in most cases. Training with light degradation settings. Stage1 encoder of SUPIR-v0F remains more details when facing light degradations.",
-            choices=["SUPIR-v0Q", "SUPIR-v0F"],
+            choices=["SUPIR-v0Q"],#, "SUPIR-v0F"],
             default="SUPIR-v0Q",
         ),
         image: Path = Input(description="Low quality input image."),
         upscale: int = Input(
-            description="Upsampling ratio of given inputs.", default=1
+            description="Upsampling ratio of given inputs.",
+            default=2
         ),
         min_size: float = Input(
             description="Minimum resolution of output images.", default=1024
@@ -145,11 +146,11 @@ class Predictor(BasePredictor):
         ),
         a_prompt: str = Input(
             description="Additive positive prompt for the inputs.",
-            default="Cinematic, High Contrast, highly detailed, taken using a Canon EOS R camera, hyper detailed photo - realistic maximum detail, 32k, Color Grading, ultra HD, extreme meticulous detailing, skin pore detailing, hyper sharpness, perfect without deformations.",
+            default="hyper detailed, maximum detail, 32k, Color Grading, ultra HD, extreme meticulous detailing, skin pore detailing, hyper sharpness, perfect",
         ),
         n_prompt: str = Input(
             description="Negative prompt for the inputs.",
-            default="painting, oil painting, illustration, drawing, art, sketch, oil painting, cartoon, CG Style, 3D render, unreal engine, blurring, dirty, messy, worst quality, low quality, frames, watermark, signature, jpeg artifacts, deformed, lowres, over-smooth",
+            default="blurring, dirty, messy, worst quality, low quality, frames, watermark, signature, jpeg artifacts, deformed, lowres, over-smooth",
         ),
         color_fix_type: str = Input(
             description="Color Fixing Type..",
