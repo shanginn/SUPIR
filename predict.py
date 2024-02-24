@@ -210,6 +210,9 @@ class Predictor(BasePredictor):
             # step 2: LLaVA
             captions = [""]
             if use_llava:
+                logging.info("Memory usage before LLaVA: ")
+                print(torch.cuda.memory_summary())
+
                 llava_img = lq_img.copy()
                 llava_img.thumbnail((512, 512))
                 llava_img, h0, w0 = PIL2Tensor(llava_img, upsacle=upscale, min_size=min_size)
@@ -222,8 +225,14 @@ class Predictor(BasePredictor):
                 captions = self.llava_agent.gen_image_caption([clean_pil_img])
                 print(f"Captions from LLaVA: {captions}")
 
-                # clear memory:
+                logging.info("Memory usage after LLaVA: ")
+                print(torch.cuda.memory_summary())
+
                 del llava_img, clean_images, clean_pil_img
+                torch.cuda.empty_cache()
+
+                logging.info("Memory usage after LLaVA cleanup: ")
+                print(torch.cuda.memory_summary())
 
             lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
             lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
