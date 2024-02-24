@@ -196,6 +196,7 @@ class Predictor(BasePredictor):
         # step 2: LLaVA
         captions = [""]
         if use_llava:
+            start = time.time()
             # step 1: Pre-denoise for LLaVA)
             clean_images = model.batchify_denoise(lq_img)
             clean_pil_img = Tensor2PIL(clean_images[0], h0, w0)
@@ -204,7 +205,9 @@ class Predictor(BasePredictor):
             print(f"Captions from LLaVA: {captions}")
 
             del clean_images, clean_pil_img
+            print(f"LLaVA took: {time.time() - start} seconds")
 
+        start = time.time()
         # step 3: Diffusion Process
         samples = model.batchify_sample(
             lq_img,
@@ -225,6 +228,7 @@ class Predictor(BasePredictor):
             cfg_scale_start=spt_linear_CFG,
             control_scale_start=spt_linear_s_stage2,
         )
+        print(f"Diffusion Process took: {time.time() - start} seconds")
 
         out_path = f"/tmp/{seed}.png"
         Tensor2PIL(samples[0], h0, w0).save(out_path)
