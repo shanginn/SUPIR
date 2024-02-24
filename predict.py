@@ -208,7 +208,7 @@ class Predictor(BasePredictor):
             lq_img = Image.open(str(image))
 
             # step 2: LLaVA
-            captions = [""]
+            captions = ['The image features a woman wearing a gold helmet, which appears to be a futuristic or space-themed design. She is also wearing a gold and black outfit, adding to the overall futuristic aesthetic. The woman is posing for the camera, and her face is prominently visible.  Her makeup is quite dramatic, with a bold red lipstick and blue eyeshadow, which further enhances the futuristic theme. The combination of the gold helmet, gold and black outfit, and striking makeup creates a visually striking and unique style.']
             if use_llava:
                 logging.info("Memory usage before LLaVA: ")
                 print(torch.cuda.memory_summary())
@@ -218,7 +218,6 @@ class Predictor(BasePredictor):
                 llava_img, h0, w0 = PIL2Tensor(llava_img, upsacle=upscale, min_size=min_size)
                 llava_img = llava_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
 
-                # step 1: Pre-denoise for LLaVA)
                 clean_images = model.batchify_denoise(llava_img)
                 clean_pil_img = Tensor2PIL(clean_images[0], h0, w0)
 
@@ -234,6 +233,7 @@ class Predictor(BasePredictor):
                 logging.info("Memory usage after LLaVA cleanup: ")
                 print(torch.cuda.memory_summary())
 
+            # Convert lq_img to tensor and move to GPU
             lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
             lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
 
