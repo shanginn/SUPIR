@@ -31,9 +31,8 @@ class Predictor(BasePredictor):
     llava_device = "cuda:0"
 
     def setup(self) -> None:
-
         self.llava_agent = LLavaAgent(
-            WEIGHTS_PATHS['LLAVA'],
+            os.path.dirname(WEIGHTS_PATHS['LLAVA']),
             device=self.llava_device,
             load_8bit=True,
             load_4bit=False
