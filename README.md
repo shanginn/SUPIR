@@ -27,6 +27,9 @@
     ```
 
 3. Download Checkpoints
+
+For users who can connect to huggingface, please setting `LLAVA_CLIP_PATH, SDXL_CLIP1_PATH, SDXL_CLIP2_CKPT_PTH` in `CKPT_PTH.py` as `None`. These CLIPs will be downloaded automatically. 
+
 #### Dependent Models
 * [SDXL CLIP Encoder-1](https://huggingface.co/openai/clip-vit-large-patch14)
 * [SDXL CLIP Encoder-2](https://huggingface.co/laion/CLIP-ViT-bigG-14-laion2B-39B-b160k)
@@ -102,6 +105,9 @@ CUDA_VISIBLE_DEVICES=0,1 python test.py --img_dir '/opt/data/private/LV_Dataset/
 ### Gradio Demo
 ```Shell
 CUDA_VISIBLE_DEVICES=0,1 python gradio_demo.py --ip 0.0.0.0 --port 6688 --use_image_slider --log_history
+
+# less VRAM & slower (12G for Diffusion, 16G for LLaVA)
+CUDA_VISIBLE_DEVICES=0,1 python gradio_demo.py --ip 0.0.0.0 --port 6688 --use_image_slider --log_history --loading_half_params --use_tile_vae --load_8bit_llava
 ```
 <p align="center">
   <img src="assets/DemoGuide.png">
