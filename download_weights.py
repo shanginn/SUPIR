@@ -6,6 +6,9 @@ import time
 CACHE_DIR = os.path.abspath("weights")
 MODEL_CACHE = f"{CACHE_DIR}/AIGC_pretrain"
 
+os.environ["HF_HOME"] = MODEL_CACHE
+os.environ["HUGGINGFACE_HUB_CACHE"] = MODEL_CACHE
+
 # URLs for model weights
 WEIGHTS_URLS = {
     "SUPIR_v0Q": "https://weights.replicate.delivery/default/SUPIR-v0Q.ckpt",
