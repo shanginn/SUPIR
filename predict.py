@@ -1,6 +1,6 @@
 # Prediction interface for Cog ⚙️
 # https://github.com/replicate/cog/blob/main/docs/python.md
-
+import copy
 import os
 import subprocess
 import time
@@ -59,7 +59,7 @@ def download_weights(url, dest, extract=True):
 
 
 class Predictor(BasePredictor):
-    models: dict
+    model: torch.nn.Module
     llava_agent: LLavaAgent
     supir_device = "cuda:0"
     llava_device = "cuda:0"
@@ -88,32 +88,20 @@ class Predictor(BasePredictor):
         if not os.path.exists(SDXL_CKPT):
             download_weights(SDXL_CLIP2_URL, SDXL_CKPT)
 
-        ae_dtype = "bf16"  # Inference data type of AutoEncoder
-        diff_dtype = "bf16"  # Inference data type of Diffusion
+        # # load LLaVA
+        self.llava_agent = LLavaAgent(LLAVA_MODEL_PATH, device=self.llava_device, load_8bit=True, load_4bit=False)
 
-        model_types = ["Q"]  # , "F"]
+        self.model = create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign="Q")
+        self.model.half()
+        self.model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
+        self.model.ae_dtype = convert_dtype("bf16")
+        self.model.model.dtype = convert_dtype("bf16")
+        self.model.first_stage_model.denoise_encoder_s1 = copy.deepcopy(self.model.first_stage_model.denoise_encoder)
 
-        self.models = {
-            k: create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign=k).to(
-                self.supir_device
-            )
-            for k in model_types
-        }
-
-        for k in model_types:
-            self.models[k].ae_dtype = convert_dtype(ae_dtype)
-            self.models[k].model.dtype = convert_dtype(diff_dtype)
-
-        # load LLaVA
-        self.llava_agent = LLavaAgent(LLAVA_MODEL_PATH, device=self.llava_device)
+        self.model.to(self.supir_device)
 
     def predict(
         self,
-        model_name: str = Input(
-            description="Choose a model. SUPIR-v0Q is the default training settings with paper. SUPIR-v0F is high generalization and high image quality in most cases. Training with light degradation settings. Stage1 encoder of SUPIR-v0F remains more details when facing light degradations.",
-            choices=["SUPIR-v0Q"],
-            default="SUPIR-v0Q",
-        ),
         image: Path = Input(description="Low quality input image."),
         upscale: int = Input(
             description="Upsampling ratio of given inputs.",
@@ -187,7 +175,7 @@ class Predictor(BasePredictor):
             seed = int.from_bytes(os.urandom(2), "big")
         print(f"Using seed: {seed}")
 
-        model = self.models["Q"] if model_name == "SUPIR-v0Q" else self.models["F"]
+        model = self.model
 
         lq_img = Image.open(str(image))
         lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
@@ -208,6 +196,7 @@ class Predictor(BasePredictor):
             print(f"LLaVA took: {time.time() - start} seconds")
 
         start = time.time()
+
         # step 3: Diffusion Process
         samples = model.batchify_sample(
             lq_img,
