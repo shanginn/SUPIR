@@ -41,7 +41,13 @@ def download(url: str, dest: str):
 
 
 def download_weights():
-    for model_dir in [MODEL_CACHE, f"{MODEL_CACHE}/SUPIR_cache", f"{MODEL_CACHE}/SDXL_cache", f"{MODEL_CACHE}/LLaVA1.5"]:
+    for model_dir in [
+        MODEL_CACHE,
+        f"{MODEL_CACHE}/SUPIR_cache",
+        f"{MODEL_CACHE}/SDXL_cache",
+        f"{MODEL_CACHE}/LLaVA1.5",
+        f"{MODEL_CACHE}/CLIP-ViT-bigG-14-laion2B-39B-b160k",
+    ]:
         os.makedirs(model_dir, exist_ok=True)
 
     for model_name, url in WEIGHTS_URLS.items():

@@ -170,8 +170,8 @@ if __name__ == '__main__':
 
     model = create_model('../../options/dev/SUPIR_paper_version.yaml')
 
-    SDXL_CKPT = '/opt/data/private/AIGC_pretrain/SDXL_cache/sd_xl_base_1.0_0.9vae.safetensors'
-    SUPIR_CKPT = '/opt/data/private/AIGC_pretrain/SUPIR_cache/SUPIR-paper.ckpt'
+    SDXL_CKPT = 'weights/AIGC_pretrain/SDXL_cache/sd_xl_base_1.0_0.9vae.safetensors'
+    SUPIR_CKPT = 'weights/AIGC_pretrain/SUPIR_cache/SUPIR-paper.ckpt'
     model.load_state_dict(load_state_dict(SDXL_CKPT), strict=False)
     model.load_state_dict(load_state_dict(SUPIR_CKPT), strict=False)
     model = model.cuda()

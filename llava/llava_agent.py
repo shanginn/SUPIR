@@ -103,6 +103,6 @@ class LLavaAgent:
 
 
 if __name__ == '__main__':
-    llava_agent = LLavaAgent("/opt/data/private/AIGC_pretrain/LLaVA1.5/llava-v1.5-13b")
-    img = [Image.open('/opt/data/private/LV_Dataset/DiffGLV-Test-All/RealPhoto60/LQ/02.png')]
+    llava_agent = LLavaAgent("weights/AIGC_pretrain/LLaVA1.5/llava-v1.5-13b")
+    img = [Image.open('weights/LV_Dataset/DiffGLV-Test-All/RealPhoto60/LQ/02.png')]
     caption = llava_agent.gen_image_caption(img)
