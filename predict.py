@@ -16,47 +16,13 @@ from SUPIR.util import (
     convert_dtype,
 )
 from llava.llava_agent import LLavaAgent
-import CKPT_PTH
+from download_weights import WEIGHTS_PATHS
 
 logging.basicConfig(
     format="(%(asctime)s) %(name)s:%(lineno)d [%(levelname)s] | %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-
-SUPIR_v0Q_URL = "https://weights.replicate.delivery/default/SUPIR-v0Q.ckpt"
-SUPIR_v0F_URL = "https://weights.replicate.delivery/default/SUPIR-v0F.ckpt"
-LLAVA_URL = "https://weights.replicate.delivery/default/llava-v1.5-13b.tar"
-LLAVA_CLIP_URL = (
-    "https://weights.replicate.delivery/default/clip-vit-large-patch14-336.tar"
-)
-SDXL_URL = "https://weights.replicate.delivery/default/stable-diffusion-xl-base-1.0/sd_xl_base_1.0_0.9vae.safetensors"
-SDXL_CLIP1_URL = "https://weights.replicate.delivery/default/clip-vit-large-patch14.tar"
-SDXL_CLIP2_URL = (
-    "https://weights.replicate.delivery/default/CLIP-ViT-bigG-14-laion2B-39B-b160k.tar"
-)
-
-MODEL_CACHE = "/opt/data/private/AIGC_pretrain/"  # Follow the default in CKPT_PTH.py
-LLAVA_CLIP_PATH = CKPT_PTH.LLAVA_CLIP_PATH
-LLAVA_MODEL_PATH = CKPT_PTH.LLAVA_MODEL_PATH
-SDXL_CLIP1_PATH = CKPT_PTH.SDXL_CLIP1_PATH
-SDXL_CLIP2_CACHE = f"{MODEL_CACHE}/models--laion--CLIP-ViT-bigG-14-laion2B-39B-b160k"
-SDXL_CKPT = f"{MODEL_CACHE}/SDXL_cache/sd_xl_base_1.0_0.9vae.safetensors"
-SUPIR_CKPT_F = f"{MODEL_CACHE}/SUPIR_cache/SUPIR-v0F.ckpt"
-SUPIR_CKPT_Q = f"{MODEL_CACHE}/SUPIR_cache/SUPIR-v0Q.ckpt"
-
-
-def download_weights(url, dest, extract=True):
-    start = time.time()
-    print("downloading url: ", url)
-    print("downloading to: ", dest)
-    args = ["pget"]
-    if extract:
-        args.append("-x")
-    subprocess.check_call(args + [url, dest], close_fds=False)
-    print("downloading took: ", time.time() - start)
-
 
 class Predictor(BasePredictor):
     model: torch.nn.Module
@@ -65,31 +31,13 @@ class Predictor(BasePredictor):
     llava_device = "cuda:0"
 
     def setup(self) -> None:
-        for model_dir in [
-            MODEL_CACHE,
-            f"{MODEL_CACHE}/SUPIR_cache",
-            f"{MODEL_CACHE}/SDXL_cache",
-        ]:
-            if not os.path.exists(model_dir):
-                os.makedirs(model_dir)
 
-        if not os.path.exists(SUPIR_CKPT_Q):
-            download_weights(SUPIR_v0Q_URL, SUPIR_CKPT_Q, extract=False)
-        if not os.path.exists(SUPIR_CKPT_F):
-            download_weights(SUPIR_v0F_URL, SUPIR_CKPT_F, extract=False)
-        if not os.path.exists(LLAVA_MODEL_PATH):
-            download_weights(LLAVA_URL, LLAVA_MODEL_PATH)
-        if not os.path.exists(LLAVA_CLIP_PATH):
-            download_weights(LLAVA_CLIP_URL, LLAVA_CLIP_PATH)
-        if not os.path.exists(SDXL_CLIP1_PATH):
-            download_weights(SDXL_CLIP1_URL, SDXL_CLIP1_PATH)
-        if not os.path.exists(SDXL_CKPT):
-            download_weights(SDXL_URL, SDXL_CKPT, extract=False)
-        if not os.path.exists(SDXL_CKPT):
-            download_weights(SDXL_CLIP2_URL, SDXL_CKPT)
-
-        # # load LLaVA
-        self.llava_agent = LLavaAgent(LLAVA_MODEL_PATH, device=self.llava_device, load_8bit=True, load_4bit=False)
+        self.llava_agent = LLavaAgent(
+            WEIGHTS_PATHS['LLAVA'],
+            device=self.llava_device,
+            load_8bit=True,
+            load_4bit=False
+        )
 
         self.model = create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign="Q")
         self.model.half()

@@ -26,3 +26,4 @@ tqdm==4.65.0
 triton==2.1.0
 webdataset==0.2.48
 xformers>=0.0.20
+bitsandbytes>=0.42

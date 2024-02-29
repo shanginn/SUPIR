@@ -1,4 +1,3 @@
-from predict import Predictor
+from download_weights import download_weights
 
-predictor = Predictor()
-predictor.setup()
+download_weights()
