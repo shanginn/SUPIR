@@ -169,7 +169,7 @@ class Predictor(BasePredictor):
     ) -> Path:
         """Run a single prediction on the model"""
 
-        lq_img, captions, samples = None, None, None
+        logger.info(f"GPU memory usage at the start: {torch.cuda.memory_allocated(self.supir_device) / 1024**3:.2f} GB")
 
         if seed is None:
             seed = int.from_bytes(os.urandom(2), "big")
@@ -194,6 +194,8 @@ class Predictor(BasePredictor):
 
             del clean_images, clean_pil_img
             print(f"LLaVA took: {time.time() - start} seconds")
+            logger.info(
+                f"GPU memory usage after LLaVA: {torch.cuda.memory_allocated(self.llava_device) / 1024 ** 3:.2f} GB")
 
         start = time.time()
 
@@ -218,6 +220,8 @@ class Predictor(BasePredictor):
             control_scale_start=spt_linear_s_stage2,
         )
         print(f"Diffusion Process took: {time.time() - start} seconds")
+        logger.info(
+            f"GPU memory usage after Diffusion Process: {torch.cuda.memory_allocated(self.supir_device) / 1024 ** 3:.2f} GB")
 
         out_path = f"/tmp/{seed}.png"
         Tensor2PIL(samples[0], h0, w0).save(out_path)
