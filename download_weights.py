@@ -37,7 +37,7 @@ def download(url: str, dest: str):
     print(f"Downloading URL: {url}")
     print(f"Destination: {dest}")
     args = ["pget"]
-    if dest.endswith((".tar", ".zip")):
+    if url.endswith((".tar", ".zip")):
         args.append("-x")
     subprocess.check_call(args + [url, dest], close_fds=False)
     print(f"Download completed in {time.time() - start:.2f} seconds")
