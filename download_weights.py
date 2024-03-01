@@ -12,7 +12,6 @@ os.environ["HUGGINGFACE_HUB_CACHE"] = MODEL_CACHE
 # URLs for model weights
 WEIGHTS_URLS = {
     "SUPIR_v0Q": "https://weights.replicate.delivery/default/SUPIR-v0Q.ckpt",
-    "SUPIR_v0F": "https://weights.replicate.delivery/default/SUPIR-v0F.ckpt",
     "LLAVA": "https://weights.replicate.delivery/default/llava-v1.5-13b.tar",
     "LLAVA_CLIP": "https://weights.replicate.delivery/default/clip-vit-large-patch14-336.tar",
     "SDXL": "https://weights.replicate.delivery/default/stable-diffusion-xl-base-1.0/sd_xl_base_1.0_0.9vae.safetensors",
@@ -23,7 +22,6 @@ WEIGHTS_URLS = {
 # Paths for model weights
 WEIGHTS_PATHS = {
     "SUPIR_v0Q": f"{MODEL_CACHE}/SUPIR_cache/SUPIR-v0Q.ckpt",
-    "SUPIR_v0F": f"{MODEL_CACHE}/SUPIR_cache/SUPIR-v0F.ckpt",
     "LLAVA": f"{MODEL_CACHE}/LLaVA1.5/llava-v1.5-13b",
     "LLAVA_CLIP": f"{MODEL_CACHE}/LLaVA1.5/clip-vit-large-patch14-336",
     "SDXL": f"{MODEL_CACHE}/SDXL_cache/sd_xl_base_1.0_0.9vae.safetensors",
