@@ -13,9 +13,10 @@ from CKPT_PTH import LLAVA_MODEL_PATH
 import einops
 import copy
 import time
+from omegaconf import OmegaConf
+from sgm.modules.diffusionmodules.sampling import _sliding_windows
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--opt", type=str, default='options/SUPIR_v0.yaml')
 parser.add_argument("--ip", type=str, default='127.0.0.1')
 parser.add_argument("--port", type=int, default='6688')
 parser.add_argument("--no_llava", action='store_true', default=False)
@@ -26,6 +27,7 @@ parser.add_argument("--use_tile_vae", action='store_true', default=False)
 parser.add_argument("--encoder_tile_size", type=int, default=512)
 parser.add_argument("--decoder_tile_size", type=int, default=64)
 parser.add_argument("--load_8bit_llava", action='store_true', default=False)
+parser.add_argument("--local_prompt", action='store_true', default=False)
 args = parser.parse_args()
 server_ip = args.ip
 server_port = args.port
@@ -41,15 +43,20 @@ else:
     raise ValueError('Currently support CUDA only.')
 
 # load SUPIR
-model, default_setting = create_SUPIR_model(args.opt, SUPIR_sign='Q', load_default_setting=True)
+config_path = 'options/SUPIR_v0_tiled.yaml'
+config = OmegaConf.load(config_path)
+model = create_SUPIR_model(config_path, SUPIR_sign='Q')
 if args.loading_half_params:
     model = model.half()
 if args.use_tile_vae:
-    model.init_tile_vae(encoder_tile_size=args.encoder_tile_size, decoder_tile_size=args.decoder_tile_size)
+    model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
 model = model.to(SUPIR_device)
 model.first_stage_model.denoise_encoder_s1 = copy.deepcopy(model.first_stage_model.denoise_encoder)
 model.current_model = 'v0-Q'
-ckpt_Q, ckpt_F = load_QF_ckpt(args.opt)
+ckpt_Q, ckpt_F = load_QF_ckpt('options/SUPIR_v0.yaml')
+
+tile_size = config.model.params.sampler_config.params.tile_size * 8
+tile_stride = config.model.params.sampler_config.params.tile_stride * 8
 
 # load LLaVA
 if use_llava:
@@ -57,6 +64,7 @@ if use_llava:
 else:
     llava_agent = None
 
+# only exhibit the overall quality of the stage1 output
 def stage1_process(input_image, gamma_correction):
     torch.cuda.set_device(SUPIR_device)
     LQ = HWC3(input_image)
@@ -73,15 +81,35 @@ def stage1_process(input_image, gamma_correction):
     LQ = LQ.round().clip(0, 255).astype(np.uint8)
     return LQ
 
-def llave_process(input_image, temperature, top_p, qs=None):
+def llave_process(input_image, upscale, temperature, top_p, qs=None):
+    torch.cuda.set_device(SUPIR_device)
+    input_image = HWC3(input_image)
+    input_image = upscale_image(input_image, upscale, unit_resolution=32,
+                                min_size=1024)
+    LQ = np.array(input_image) / 255.0
+    LQ *= 255.0
+    LQ = LQ.round().clip(0, 255).astype(np.uint8)
+    LQ = LQ / 255 * 2 - 1
+    LQ = torch.tensor(LQ, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0).to(SUPIR_device)[:, :3, :, :]
+    LQ = model.batchify_denoise(LQ, is_stage1=True)
+
+    _, _, h, w = LQ.shape
+    tiles_iterator = _sliding_windows(h, w, tile_size, tile_stride)
+    LQ_tiles = []
+    for hi, hi_end, wi, wi_end in tiles_iterator:
+        _LQ = LQ[:, :, hi:hi_end, wi:wi_end]
+        _LQ = (_LQ[0].permute(1, 2, 0) * 127.5 + 127.5).cpu().numpy().round().clip(0, 255).astype(np.uint8)
+        LQ_tiles.append(Image.fromarray(_LQ))
+
+    captions = []
     torch.cuda.set_device(LLaVA_device)
     if use_llava:
-        LQ = HWC3(input_image)
-        LQ = Image.fromarray(LQ.astype('uint8'))
-        captions = llava_agent.gen_image_caption([LQ], temperature=temperature, top_p=top_p, qs=qs)
+        for LQ_tile in LQ_tiles:
+            captions += llava_agent.gen_image_caption([LQ_tile], temperature=temperature, top_p=top_p, qs=qs)
     else:
-        captions = ['LLaVA is not available. Please add text manually.']
-    return captions[0]
+        captions = 'LLaVA is not available. Please add text manually.'
+    return str(captions)
+
 
 def stage2_process(input_image, prompt, a_prompt, n_prompt, num_samples, upscale, edm_steps, s_stage1, s_stage2,
                    s_cfg, seed, s_churn, s_noise, color_fix_type, diff_dtype, ae_dtype, gamma_correction,
@@ -116,7 +144,7 @@ def stage2_process(input_image, prompt, a_prompt, n_prompt, num_samples, upscale
     LQ = LQ / 255 * 2 - 1
     LQ = torch.tensor(LQ, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0).to(SUPIR_device)[:, :3, :, :]
     if use_llava:
-        captions = [prompt]
+        captions = [eval(prompt)]
     else:
         captions = ['']
 
@@ -143,9 +171,8 @@ def stage2_process(input_image, prompt, a_prompt, n_prompt, num_samples, upscale
             Image.fromarray(result).save(f'./history/{event_id[:5]}/{event_id[5:]}/HQ_{i}.png')
     return [input_image] + results, event_id, 3, ''
 
-
 def load_and_reset(param_setting):
-    edm_steps = default_setting.edm_steps
+    edm_steps = 50
     s_stage2 = 1.0
     s_stage1 = -1.0
     s_churn = 5
@@ -161,11 +188,11 @@ def load_and_reset(param_setting):
     linear_s_stage2 = False
     linear_CFG = True
     if param_setting == "Quality":
-        s_cfg = default_setting.s_cfg_Quality
-        spt_linear_CFG = default_setting.spt_linear_CFG_Quality
+        s_cfg = 7.5
+        spt_linear_CFG = 4.0
     elif param_setting == "Fidelity":
-        s_cfg = default_setting.s_cfg_Fidelity
-        spt_linear_CFG = default_setting.spt_linear_CFG_Fidelity
+        s_cfg = 4.0
+        spt_linear_CFG = 1.0
     else:
         raise NotImplementedError
     return edm_steps, s_cfg, s_stage2, s_stage1, s_churn, s_noise, a_prompt, n_prompt, color_fix_type, linear_CFG, \
@@ -184,7 +211,6 @@ def submit_feedback(event_id, fb_score, fb_text):
         return 'Submit successfully, thank you for your comments!'
     else:
         return 'Submit failed, the server is not set to log history.'
-
 
 title_md = """
 # **SUPIR: Practicing Model Scaling for Photo-Realistic Image Restoration**
@@ -231,9 +257,8 @@ with block:
                 num_samples = gr.Slider(label="Num Samples", minimum=1, maximum=4 if not args.use_image_slider else 1
                                         , value=1, step=1)
                 upscale = gr.Slider(label="Upscale", minimum=1, maximum=8, value=1, step=1)
-                edm_steps = gr.Slider(label="Steps", minimum=1, maximum=200, value=default_setting.edm_steps, step=1)
-                s_cfg = gr.Slider(label="Text Guidance Scale", minimum=1.0, maximum=15.0,
-                                  value=default_setting.s_cfg_Quality, step=0.1)
+                edm_steps = gr.Slider(label="Steps", minimum=20, maximum=200, value=50, step=1)
+                s_cfg = gr.Slider(label="Text Guidance Scale", minimum=1.0, maximum=15.0, value=7.5, step=0.1)
                 s_stage2 = gr.Slider(label="Stage2 Guidance Strength", minimum=0., maximum=1., value=1., step=0.05)
                 s_stage1 = gr.Slider(label="Stage1 Guidance Strength", minimum=-1.0, maximum=6.0, value=-1.0, step=1.0)
                 seed = gr.Slider(label="Seed", minimum=-1, maximum=2147483647, step=1, randomize=True)
@@ -253,7 +278,7 @@ with block:
                     with gr.Column():
                         linear_CFG = gr.Checkbox(label="Linear CFG", value=True)
                         spt_linear_CFG = gr.Slider(label="CFG Start", minimum=1.0,
-                                                        maximum=9.0, value=default_setting.spt_linear_CFG_Quality, step=0.5)
+                                                        maximum=9.0, value=4.0, step=0.5)
                     with gr.Column():
                         linear_s_stage2 = gr.Checkbox(label="Linear Stage2 Guidance", value=False)
                         spt_linear_s_stage2 = gr.Slider(label="Guidance Start", minimum=0.,
@@ -300,7 +325,7 @@ with block:
         gr.Markdown(claim_md)
         event_id = gr.Textbox(label="Event ID", value="", visible=False)
 
-    llave_button.click(fn=llave_process, inputs=[denoise_image, temperature, top_p, qs], outputs=[prompt])
+    llave_button.click(fn=llave_process, inputs=[input_image, upscale, temperature, top_p, qs], outputs=[prompt])
     denoise_button.click(fn=stage1_process, inputs=[input_image, gamma_correction],
                          outputs=[denoise_image])
     stage2_ips = [input_image, prompt, a_prompt, n_prompt, num_samples, upscale, edm_steps, s_stage1, s_stage2,
