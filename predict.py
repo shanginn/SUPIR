@@ -44,7 +44,8 @@ class Predictor(BasePredictor):
         self,
         image: Path = Input(description="Low quality input image."),
         captions: str = Input(
-            description="Captions for the inputs.", default=""
+            description="Captions for the image",
+            default="a professional, detailed, high-quality photo"
         ),
         upscale: int = Input(
             description="Upsampling ratio of given inputs.",
