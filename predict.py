@@ -28,7 +28,7 @@ class Predictor(BasePredictor):
     supir_device = "cuda:0"
 
     def setup(self) -> None:
-        self.model = create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign="Q")
+        self.model = create_SUPIR_model("options/SUPIR_v0_Juggernautv9_lightning.yaml", SUPIR_sign="Q")
         self.model.half()
         self.model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
         self.model.ae_dtype = convert_dtype("bf16")
