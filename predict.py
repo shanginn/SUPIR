@@ -19,7 +19,6 @@ from SUPIR.util import (
     Tensor2PIL,
     convert_dtype,
 )
-from download_weights import WEIGHTS_PATHS
 
 logging.basicConfig(
     format="(%(asctime)s) %(name)s:%(lineno)d [%(levelname)s] | %(message)s",
