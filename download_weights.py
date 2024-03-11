@@ -13,7 +13,6 @@ os.environ["HUGGINGFACE_HUB_CACHE"] = MODEL_CACHE
 WEIGHTS_URLS = {
     "SUPIR_v0Q": "https://weights.replicate.delivery/default/SUPIR-v0Q.ckpt",
     "LLAVA": "https://weights.replicate.delivery/default/llava-v1.5-13b.tar",
-    "LLAVA_CLIP": "https://weights.replicate.delivery/default/clip-vit-large-patch14-336.tar",
     "SDXL": "https://weights.replicate.delivery/default/stable-diffusion-xl-base-1.0/sd_xl_base_1.0_0.9vae.safetensors",
     "SDXL_CLIP1": "https://weights.replicate.delivery/default/clip-vit-large-patch14.tar",
     "SDXL_CLIP2": "https://weights.replicate.delivery/default/CLIP-ViT-bigG-14-laion2B-39B-b160k.tar",
@@ -22,8 +21,6 @@ WEIGHTS_URLS = {
 # Paths for model weights
 WEIGHTS_PATHS = {
     "SUPIR_v0Q": f"{MODEL_CACHE}/SUPIR_cache/SUPIR-v0Q.ckpt",
-    "LLAVA": f"{MODEL_CACHE}/LLaVA1.5/llava-v1.5-13b",
-    "LLAVA_CLIP": f"{MODEL_CACHE}/LLaVA1.5/clip-vit-large-patch14-336",
     "SDXL": f"{MODEL_CACHE}/SDXL_cache/sd_xl_base_1.0_0.9vae.safetensors",
     "SDXL_CLIP1": f"{MODEL_CACHE}/clip-vit-large-patch14",
     "SDXL_CLIP2": f"{MODEL_CACHE}/CLIP-ViT-bigG-14-laion2B-39B-b160k/open_clip_pytorch_model.bin",
@@ -46,7 +43,6 @@ def download_weights():
         MODEL_CACHE,
         f"{MODEL_CACHE}/SUPIR_cache",
         f"{MODEL_CACHE}/SDXL_cache",
-        f"{MODEL_CACHE}/LLaVA1.5",
         f"{MODEL_CACHE}/CLIP-ViT-bigG-14-laion2B-39B-b160k",
     ]:
         os.makedirs(model_dir, exist_ok=True)

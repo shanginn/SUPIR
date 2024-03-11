@@ -15,7 +15,6 @@ from SUPIR.util import (
     Tensor2PIL,
     convert_dtype,
 )
-from llava.llava_agent import LLavaAgent
 from download_weights import WEIGHTS_PATHS
 
 logging.basicConfig(
@@ -26,18 +25,9 @@ logger = logging.getLogger(__name__)
 
 class Predictor(BasePredictor):
     model: torch.nn.Module
-    llava_agent: LLavaAgent
     supir_device = "cuda:0"
-    llava_device = "cuda:0"
 
     def setup(self) -> None:
-        self.llava_agent = LLavaAgent(
-            os.path.dirname(WEIGHTS_PATHS['LLAVA']),
-            device=self.llava_device,
-            load_8bit=True,
-            load_4bit=False
-        )
-
         self.model = create_SUPIR_model("options/SUPIR_v0.yaml", SUPIR_sign="Q")
         self.model.half()
         self.model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
@@ -50,6 +40,9 @@ class Predictor(BasePredictor):
     def predict(
         self,
         image: Path = Input(description="Low quality input image."),
+        captions: str = Input(
+            description="Captions for the inputs.", default=""
+        ),
         upscale: int = Input(
             description="Upsampling ratio of given inputs.",
             default=2
@@ -62,9 +55,6 @@ class Predictor(BasePredictor):
             ge=1,
             le=500,
             default=50,
-        ),
-        use_llava: bool = Input(
-            description="Use LLaVA model to get captions.", default=True
         ),
         a_prompt: str = Input(
             description="Additive positive prompt for the inputs.",
@@ -96,7 +86,7 @@ class Predictor(BasePredictor):
             default=7.5,
         ),
         s_stage2: float = Input(description="Control Strength of Stage2.", default=1.0),
-        linear_CFG: bool = Input(
+        linear_cfg: bool = Input(
             description="Linearly (with sigma) increase CFG from 'spt_linear_CFG' to s_cfg.",
             default=False,
         ),
@@ -104,7 +94,7 @@ class Predictor(BasePredictor):
             description="Linearly (with sigma) increase s_stage2 from 'spt_linear_s_stage2' to s_stage2.",
             default=False,
         ),
-        spt_linear_CFG: float = Input(
+        spt_linear_cfg: float = Input(
             description="Start point of linearly increasing CFG.", default=1.0
         ),
         spt_linear_s_stage2: float = Input(
@@ -128,22 +118,6 @@ class Predictor(BasePredictor):
         lq_img, h0, w0 = PIL2Tensor(lq_img, upsacle=upscale, min_size=min_size)
         lq_img = lq_img.unsqueeze(0).to(self.supir_device)[:, :3, :, :]
 
-        # step 2: LLaVA
-        captions = [""]
-        if use_llava:
-            start = time.time()
-            # step 1: Pre-denoise for LLaVA)
-            clean_images = model.batchify_denoise(lq_img)
-            clean_pil_img = Tensor2PIL(clean_images[0], h0, w0)
-
-            captions = self.llava_agent.gen_image_caption([clean_pil_img])
-            print(f"Captions from LLaVA: {captions}")
-
-            del clean_images, clean_pil_img
-            print(f"LLaVA took: {time.time() - start} seconds")
-            logger.info(
-                f"GPU memory usage after LLaVA: {torch.cuda.memory_allocated(self.llava_device) / 1024 ** 3:.2f} GB")
-
         start = time.time()
 
         # step 3: Diffusion Process
@@ -161,9 +135,9 @@ class Predictor(BasePredictor):
             p_p=a_prompt,
             n_p=n_prompt,
             color_fix_type=color_fix_type,
-            use_linear_CFG=linear_CFG,
+            use_linear_CFG=linear_cfg,
             use_linear_control_scale=linear_s_stage2,
-            cfg_scale_start=spt_linear_CFG,
+            cfg_scale_start=spt_linear_cfg,
             control_scale_start=spt_linear_s_stage2,
         )
         print(f"Diffusion Process took: {time.time() - start} seconds")
