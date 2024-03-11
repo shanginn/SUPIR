@@ -1,7 +1,11 @@
-# Prediction interface for Cog ⚙️
-# https://github.com/replicate/cog/blob/main/docs/python.md
-import copy
 import os
+
+cache_dir = os.path.abspath("weights")
+os.environ["PYANNOTE_CACHE"] = cache_dir
+os.environ["HF_HOME"] = cache_dir
+os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
+
+import copy
 import subprocess
 import time
 from PIL import Image
