@@ -32,8 +32,8 @@ class Predictor(BasePredictor):
 
     def setup(self) -> None:
         self.model = create_SUPIR_model("options/SUPIR_v0_Juggernautv9_lightning.yaml", SUPIR_sign="Q")
-        self.model.half()
-        self.model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
+        # self.model.half()
+        # self.model.init_tile_vae(encoder_tile_size=512, decoder_tile_size=64)
         self.model.ae_dtype = convert_dtype("bf16")
         self.model.model.dtype = convert_dtype("bf16")
         self.model.first_stage_model.denoise_encoder_s1 = copy.deepcopy(self.model.first_stage_model.denoise_encoder)
