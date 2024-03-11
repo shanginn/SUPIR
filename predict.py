@@ -126,7 +126,7 @@ class Predictor(BasePredictor):
         # step 3: Diffusion Process
         samples = model.batchify_sample(
             lq_img,
-            captions,
+            [captions],
             num_steps=edm_steps,
             restoration_scale=s_stage1,
             s_churn=s_churn,
